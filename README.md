@@ -1,6 +1,5 @@
-# 📦 Streamlit App Starter Kit 
+# License Management Software
 ```
-⬆️ (Replace above with your app's name)
 ```
 
 Description of the app ...
