@@ -5,9 +5,10 @@ st.title('License Management Software')
 st.info('License Managament Software Thales')
 
 with st.expander('Data'):
-  st.write('Raw Data')
-  df = pd.read_csv('synthetic_licensing_dataset.csv')
-  st.dataframe(df)
+    st.write('Raw Data')
+    df = pd.read_csv('synthetic_licensing_dataset.csv')
+    df['purchase_date'] = pd.to_datetime(df['purchase_date'])  # <-- Ensure it's datetime
+    st.dataframe(df)
 
 # --- Sidebar Filters ---
 st.sidebar.header("Filter Options")
