@@ -14,11 +14,11 @@ st.sidebar.header("Filter Options")
 
 # 1. Company Name filter
 customer = df['customer_id'].dropna().unique()
-selected_companies = st.sidebar.multiselect("Select Customer ID", customer, default=customer)
+selected_customers = st.sidebar.multiselect("Select Customer ID", customer, default=customer)
 
 # 2. Product Name filter
 product = df['product_id'].dropna().unique()
-selected_product = st.sidebar.multiselect("Select Product ID", product, default=product)
+selected_products = st.sidebar.multiselect("Select Product ID", product, default=product)
 
 # 3. Date Range Filter
 min_date = df['purchase_date'].min()
@@ -32,7 +32,7 @@ start_date, end_date = st.sidebar.date_input(
 
 # --- Apply Filters ---
 filtered_df = df[
-    (df['customer_id'].isin(selected_companies)) &
+    (df['customer_id'].isin(selected_customers)) &
     (df['product_id'].isin(selected_products)) &
     (df['purchase_date'] >= pd.to_datetime(start_date)) &
     (df['purchase_date'] <= pd.to_datetime(end_date))
