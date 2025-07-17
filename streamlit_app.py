@@ -30,7 +30,7 @@ col1, col2 = st.columns([8, 2])
 with col1:
     st.subheader("Licensing Data")
 with col2:
-    if st.button("Filters", use_container_width=True):
+    if st.button("**Filters**", use_container_width=True):
         st.session_state.show_filters = not st.session_state.show_filters
 
 # --- Filter Popup ---
