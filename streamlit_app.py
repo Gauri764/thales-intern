@@ -1,11 +1,11 @@
 import streamlit as st
-
-st.title('License Management Software')
-
-st.write('Hello world!')
-
 import pandas as pd
 
-df = pd.read_csv('synthetic_licensing_dataset.csv')
-st.dataframe(df)
+st.title('License Management Software')
+st.info('License Managament Software Thales')
+
+with st.expander('Data'):
+  st.write('Raw Data')
+  df = pd.read_csv('synthetic_licensing_dataset.csv')
+  st.dataframe(df)
 
