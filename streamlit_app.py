@@ -28,15 +28,15 @@ st.info('License Management Software - Thales')
 # --- Licensing Data Header and Filter Button ---
 col1, col2 = st.columns([8, 2])
 with col1:
-    st.subheader("📄 Licensing Data")
+    st.subheader("Licensing Data")
 with col2:
-    if st.button("🔍 Filters", use_container_width=True):
+    if st.button("Filters", use_container_width=True):
         st.session_state.show_filters = not st.session_state.show_filters
 
 # --- Filter Popup ---
 if st.session_state.show_filters:
     with st.container():
-        st.markdown("### 🧰 Apply Filters")
+        st.markdown("Apply Filters")
         st.markdown("Use the options below to filter the licensing data:")
 
         # Customer ID filter
