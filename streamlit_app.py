@@ -123,23 +123,29 @@ fig2 = go.Figure(data=[
 fig2.update_layout(title_text="🧑‍💼 Top 10 Customers by License Share")
 st.plotly_chart(fig2, use_container_width=True)
 
-# 3. Bar chart: Purchased vs Activated vs Used for Top 10 Customers
-if {'licenses_activated', 'licenses_used'}.issubset(filtered_df.columns):
-    top_customer_ids = top_customers.index
-    bar_data = filtered_df[filtered_df['customer_id'].isin(top_customer_ids)]
-    bar_grouped = bar_data.groupby('customer_id')[['licenses_purchased', 'licenses_activated', 'licenses_used']].sum().reset_index()
-
-    fig3 = go.Figure()
-    fig3.add_trace(go.Bar(x=bar_grouped['customer_id'], y=bar_grouped['licenses_purchased'], name='Purchased'))
-    fig3.add_trace(go.Bar(x=bar_grouped['customer_id'], y=bar_grouped['licenses_activated'], name='Activated'))
-    fig3.add_trace(go.Bar(x=bar_grouped['customer_id'], y=bar_grouped['licenses_used'], name='Used'))
-
-    fig3.update_layout(
-        barmode='group',
-        title="🏗️ License Purchased vs Activated vs Used (Top Customers)",
-        xaxis_title="Customer ID",
-        yaxis_title="License Count"
+# --- Chart 3: Licenses Purchased vs Activated vs Used (Top 10 Customers) ---
+license_columns = ['licenses_purchased', 'licenses_activated', 'licenses_used']
+if all(col in filtered_df.columns for col in license_columns):
+    license_stats = (
+        filtered_df.groupby('customer_id')[license_columns]
+        .sum()
+        .sort_values(by='licenses_purchased', ascending=False)
+        .head(10)
     )
-    st.plotly_chart(fig3, use_container_width=True)
+
+    if not license_stats.empty:
+        license_stats = license_stats.reset_index().melt(id_vars='customer_id', var_name='License Type', value_name='Count')
+        bar_fig = px.bar(
+            license_stats,
+            x='customer_id',
+            y='Count',
+            color='License Type',
+            barmode='group',
+            title='Licenses Purchased vs Activated vs Used (Top 10 Customers)'
+        )
+        st.plotly_chart(bar_fig, use_container_width=True)
+    else:
+        st.warning("No data available for top customers' license stats based on the current filters.")
 else:
-    st.warning("Required columns for bar chart not found: `licenses_activated` and/or `licenses_used`.")
+    st.warning("Required columns for license stats not found in dataset.")
+
