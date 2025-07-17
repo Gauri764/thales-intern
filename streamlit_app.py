@@ -36,7 +36,7 @@ with col2:
 # --- Filter Popup ---
 if st.session_state.show_filters:
     with st.container():
-        st.markdown("Apply Filters")
+        st.markdown("**Apply Filters**")
         st.markdown("Use the options below to filter the licensing data:")
 
         # Customer ID filter
