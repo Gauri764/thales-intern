@@ -11,7 +11,7 @@ df = pd.read_csv('synthetic_licensing_dataset.csv')
 df['purchase_date'] = pd.to_datetime(df['purchase_date'])
 
 # --- Sidebar Filters ---
-st.sidebar.header("🔍 Filter Options")
+st.sidebar.header("Filter Options")
 
 # 1. Customer ID filter
 customer_ids = df['customer_id'].dropna().unique()
@@ -30,14 +30,12 @@ selected_products = st.sidebar.multiselect(
 )
 
 # 3. Purchase Date Range filter
-min_date = df['purchase_date'].min()
-max_date = df['purchase_date'].max()
-date_range = st.sidebar.date_input(
+date_range = st.sidebar.slider(
     "Select Purchase Date Range",
-    [min_date, max_date],
     min_value=min_date,
     max_value=max_date,
-    key="purchase_date_range"
+    value=(min_date, max_date),
+    format="YYYY-MM-DD"
 )
 
 # --- Apply Filters Dynamically ---
