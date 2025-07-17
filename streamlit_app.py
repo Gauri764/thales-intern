@@ -12,14 +12,16 @@ df['purchase_date'] = pd.to_datetime(df['purchase_date'])
 if 'show_filters' not in st.session_state:
     st.session_state.show_filters = False
 
-# --- Filter toggle button in header ---
-top_col1, top_col2 = st.columns([8, 2])
-with top_col1:
-    st.title('License Management Software')
-    st.info('License Management Software - Thales')
-with top_col2:
+# --- Show Filtered Table Header and Filter Button (inline) ---
+col1, col2 = st.columns([8, 2])
+with col1:
+    st.subheader("📄 Licensing Data")
+with col2:
     if st.button("🔍 Filters", use_container_width=True):
         st.session_state.show_filters = not st.session_state.show_filters
+
+st.write(f"Showing {len(filtered_df)} rows")
+st.dataframe(filtered_df, use_container_width=True)
 
 # --- Filter Popup Simulation ---
 if st.session_state.show_filters:
