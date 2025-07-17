@@ -12,16 +12,15 @@ df['purchase_date'] = pd.to_datetime(df['purchase_date'])
 if 'show_filters' not in st.session_state:
     st.session_state.show_filters = False
 
-# --- Show Filtered Table Header and Filter Button (inline) ---
-col1, col2 = st.columns([8, 2])
-with col1:
-    st.subheader("📄 Licensing Data")
-with col2:
-    if st.button("🔍 Filters", use_container_width=True):
-        st.session_state.show_filters = not st.session_state.show_filters
+# Title and subtitle
+st.title('License Management Software')
+st.info('License Management Software - Thales')
 
-st.write(f"Showing {len(filtered_df)} rows")
-st.dataframe(filtered_df, use_container_width=True)
+# --- Apply Filters (default or user-selected) ---
+# Default selections (if filter not visible)
+selected_customers = []
+selected_products = []
+date_range = (df['purchase_date'].min(), df['purchase_date'].max())
 
 # --- Filter Popup Simulation ---
 if st.session_state.show_filters:
@@ -29,7 +28,7 @@ if st.session_state.show_filters:
         st.markdown("### 🧰 Apply Filters")
         st.markdown("Use the options below to filter the licensing data:")
 
-        # Filters
+        # Customer ID filter
         customer_ids = df['customer_id'].dropna().unique()
         selected_customers = st.multiselect(
             "Select Customer ID",
@@ -37,6 +36,7 @@ if st.session_state.show_filters:
             placeholder="All customers"
         )
 
+        # Product ID filter
         product_ids = df['product_id'].dropna().unique()
         selected_products = st.multiselect(
             "Select Product ID",
@@ -44,6 +44,7 @@ if st.session_state.show_filters:
             placeholder="All products"
         )
 
+        # Date Range filter
         min_date = df['purchase_date'].min()
         max_date = df['purchase_date'].max()
         date_range = st.date_input(
@@ -54,13 +55,7 @@ if st.session_state.show_filters:
             key="purchase_date_range"
         )
 
-else:
-    # Default selections (show all if popup not open)
-    selected_customers = []
-    selected_products = []
-    date_range = (df['purchase_date'].min(), df['purchase_date'].max())
-
-# --- Apply Filters ---
+# --- Apply Filters to DataFrame ---
 filtered_df = df.copy()
 
 if selected_customers:
@@ -76,7 +71,14 @@ if isinstance(date_range, tuple) and len(date_range) == 2:
         (filtered_df['purchase_date'] <= end_date)
     ]
 
+# --- Licensing Data Header and Filter Button ---
+col1, col2 = st.columns([8, 2])
+with col1:
+    st.subheader("📄 Licensing Data")
+with col2:
+    if st.button("🔍 Filters", use_container_width=True):
+        st.session_state.show_filters = not st.session_state.show_filters
+
 # --- Show Filtered Table ---
-st.subheader("📄 Licensing Data")
 st.write(f"Showing {len(filtered_df)} rows")
 st.dataframe(filtered_df, use_container_width=True)
