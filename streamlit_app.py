@@ -8,7 +8,7 @@ from datetime import datetime
 # --- Page Configuration ---
 st.set_page_config(
     page_title="Licensing Analytics Dashboard",
-    page_icon="thales logo.png",
+    page_icon="�",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -207,51 +207,51 @@ if df is not None:
             st.dataframe(df, use_container_width=True)
 
         st.markdown("---")
-        st.markdown("## 📊 Charts")
         
         if not df.empty:
             col1, col2 = st.columns(2)
             with col1:
                 # 1. Top 10 sold products over the years
+                st.subheader("📈 Top 10 Sold Products Over the Years")
                 product_sales = df.groupby(['product_id', df['purchase_date'].dt.year])['licenses_purchased'].sum().reset_index()
                 top_10_products = product_sales.groupby('product_id')['licenses_purchased'].sum().nlargest(10).index
                 filtered_product_sales = product_sales[product_sales['product_id'].isin(top_10_products)]
-                fig1 = px.line(filtered_product_sales, x='purchase_date', y='licenses_purchased', color='product_id', markers=True, title="📈 Top 10 Sold Products Over the Years")
+                fig1 = px.line(filtered_product_sales, x='purchase_date', y='licenses_purchased', color='product_id', markers=True)
                 st.plotly_chart(fig1, use_container_width=True)
 
             with col2:
                 # 2. Pie chart: Top 10 customers and Others
-                st.subheader("Customer License Share")
+                st.subheader("🧑‍💼 Customer License Share")
                 customer_total = df.groupby('customer_id')['licenses_purchased'].sum()
                 top_customers = customer_total.nlargest(10)
                 
-                # Check if filters are active
                 is_filtered = bool(st.session_state.selected_customers) or bool(st.session_state.selected_products)
                 
                 if not is_filtered and len(df_original['customer_id'].unique()) > 10:
-                    # Show only top 10 with percentages if no filters are on
                     fig2 = go.Figure(data=[go.Pie(labels=[str(c) for c in top_customers.index], values=top_customers.values, hole=0.4, textinfo='percent+label')])
-                    fig2.update_layout(title_text="🧑‍💼 Top 10 Customers by License Share (Unfiltered)")
+                    fig2.update_layout(title_text="Top 10 Customers (Unfiltered)")
                 else:
-                    # Show Top 10 + Others when filtered
                     others_sum = customer_total.sum() - top_customers.sum()
                     labels = [str(c) for c in top_customers.index] + ['Others']
                     values = list(top_customers.values) + [others_sum]
                     fig2 = go.Figure(data=[go.Pie(labels=labels, values=values, hole=0.4)])
-                    fig2.update_layout(title_text="🧑‍💼 Customer License Share (Filtered)")
+                    fig2.update_layout(title_text="Customer Share (Filtered)")
                 st.plotly_chart(fig2, use_container_width=True)
 
+            st.markdown("---")
             # 3. Licenses Purchased vs Activated vs Used (Top 10 Customers)
+            st.subheader("📊 License Usage for Top 10 Customers")
             license_columns = ['licenses_purchased', 'licenses_activated', 'licenses_used']
             if all(col in df.columns for col in license_columns):
                 license_stats = df.groupby('customer_id')[license_columns].sum().sort_values(by='licenses_purchased', ascending=False).head(10)
                 if not license_stats.empty:
                     license_stats = license_stats.reset_index()
-                    # Fix: Convert customer_id to string to ensure discrete axis
                     license_stats['customer_id'] = license_stats['customer_id'].astype(str)
                     license_stats_melted = license_stats.melt(id_vars='customer_id', var_name='License Type', value_name='Count')
                     
-                    bar_fig = px.bar(license_stats_melted, x='customer_id', y='Count', color='License Type', barmode='group', title='Licenses Purchased vs Activated vs Used (Top 10 Customers)', labels={'customer_id': 'Customer ID'})
+                    bar_fig = px.bar(license_stats_melted, x='customer_id', y='Count', color='License Type', barmode='group', labels={'customer_id': 'Customer ID'})
+                    # Explicitly set the x-axis type to 'category' to ensure discrete labels
+                    bar_fig.update_xaxes(type='category')
                     st.plotly_chart(bar_fig, use_container_width=True)
                 else:
                     st.warning("No data available for top customers' license stats based on the current filters.")
@@ -294,3 +294,4 @@ if df is not None:
                     st.info(f"Recommended Product 2: **{recommended_products[1]}**", icon="🛍️")
                 else:
                     st.write("No new products to recommend at this time.")
+�
