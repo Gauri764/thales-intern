@@ -230,12 +230,12 @@ if df is not None:
             with col1:
                 st.subheader("Top 10 Products by Revenue")
                 top_products_rev = df.groupby('product_id')['revenue'].sum().nlargest(10).sort_values(ascending=True)
-                fig_top_prod_rev = px.bar(top_products_rev, x=top_products_rev.values, y=top_products_rev.index, orientation='h')
+                fig_top_prod_rev = px.bar(top_products_rev, x=top_products_rev.values, y=top_products_rev.index, orientation='h', labels={'x': 'Frequency', 'product_id': 'Product ID'})
                 st.plotly_chart(fig_top_prod_rev, use_container_width=True)
             with col2:
                 st.subheader("Top 10 Products by Licenses Sold")
                 top_products_lic = df.groupby('product_id')['licenses_purchased'].sum().nlargest(10).sort_values(ascending=True)
-                fig_top_prod_lic = px.bar(top_products_lic, x=top_products_lic.values, y=top_products_lic.index, orientation='h')
+                fig_top_prod_lic = px.bar(top_products_lic, x=top_products_lic.values, y=top_products_lic.index, orientation='h', labels={'x': 'Frequency', 'product_id': 'Product ID'})
                 st.plotly_chart(fig_top_prod_lic, use_container_width=True)
             usage_df = df.groupby('product_id').agg({'licenses_purchased': 'sum', 'licenses_activated': 'sum', 'licenses_used': 'mean'}).reset_index()
             usage_df['activation_rate'] = (usage_df['licenses_activated'] / usage_df['licenses_purchased']) * 100
