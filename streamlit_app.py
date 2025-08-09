@@ -261,7 +261,7 @@ if df is not None:
                 product_sales = df.groupby(['product_id', df['purchase_date'].dt.year])['licenses_purchased'].sum().reset_index()
                 top_10_products = product_sales.groupby('product_id')['licenses_purchased'].sum().nlargest(10).index
                 filtered_product_sales = product_sales[product_sales['product_id'].isin(top_10_products)]
-                fig1 = px.line(filtered_product_sales, x='purchase_date', y='licenses_purchased', color='product_id', markers=True, labels={'purchase_date': 'Year', 'licenses purchased': 'Purchase Frequency'})
+                fig1 = px.line(filtered_product_sales, x='purchase_date', y='licenses_purchased', color='product_id', markers=True, labels={'purchase_date': 'Year', 'licenses_purchased': 'Purchase Frequency', 'product_id': 'Product ID'})
                 st.plotly_chart(fig1, use_container_width=True)
             with col2:
                 st.subheader("Customer License Share")
