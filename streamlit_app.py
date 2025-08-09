@@ -8,7 +8,7 @@ from datetime import datetime
 # --- Page Configuration ---
 st.set_page_config(
     page_title="Licensing Analytics Dashboard",
-    page_icon="🔑",
+    page_icon="thales logo.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
