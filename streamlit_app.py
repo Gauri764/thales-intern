@@ -326,11 +326,11 @@ if df is not None:
                     renewal_reason = customer_data['renewal_reason']
                     
                     if renewal_risk > 0.6:
-                        st.error(f"Low Chance of Renewal: {renewal_risk:.1%}", icon="🔴")
+                        st.error(f"Low Chance of Renewal: {100-renewal_risk:.1%}", icon="🔴")
                     elif renewal_risk > 0.3:
-                        st.warning(f"Moderate Chance of Renewal: {renewal_risk:.1%}", icon="🟡")
+                        st.warning(f"Moderate Chance of Renewal: {100-renewal_risk:.1%}", icon="🟡")
                     else:
-                        st.success(f"High Chance of Renewal: {renewal_risk:.1%}", icon="🟢")
+                        st.success(f"High Chance of Renewal: {100-renewal_risk:.1%}", icon="🟢")
                     st.write(f"**Reason:** {renewal_reason}")
                     st.caption(f"Next license expires on: {customer_data['next_expiration_date'].date()}")
 
