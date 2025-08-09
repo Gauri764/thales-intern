@@ -23,22 +23,19 @@ def load_data(filepath):
     try:
         df = pd.read_csv(filepath)
         # --- Data Cleaning and Feature Engineering ---
+        # Convert date columns to datetime objects, which is essential for time-based analysis.
         df['purchase_date'] = pd.to_datetime(df['purchase_date'])
         df['activation_date'] = pd.to_datetime(df['activation_date'])
         df['expiration_date'] = pd.to_datetime(df['expiration_date'])
 
-        np.random.seed(42)
-        product_prices = pd.DataFrame({
-            'product_id': df['product_id'].unique(),
-            'price': np.random.randint(50, 500, size=df['product_id'].nunique())
-        })
-        df = df.merge(product_prices, on='product_id', how='left')
-        df['revenue'] = df['licenses_purchased'] * df['price']
+        # The price and revenue columns are now included in the source CSV,
+        # so we no longer need to calculate them within the app. This resolves the KeyError.
 
+        # Determine the current status of each license.
         today = datetime.now()
         df['status'] = np.where(df['expiration_date'] > today, 'Active', 'Expired')
         
-        # Renaming for consistency with the new page's code
+        # Rename 'usage_last_year' to 'licenses_used' for consistency with the Detailed Analytics page.
         df.rename(columns={'usage_last_year': 'licenses_used'}, inplace=True)
 
         return df
@@ -59,7 +56,7 @@ st.sidebar.markdown("---")
 if df_original is not None:
     st.sidebar.title("🧰 Global Filters")
     
-    # Initialize session state for filters
+    # Initialize session state for filters to maintain user selections across reruns.
     if 'selected_customers' not in st.session_state:
         st.session_state.selected_customers = []
     if 'selected_products' not in st.session_state:
@@ -67,7 +64,7 @@ if df_original is not None:
     if 'date_range' not in st.session_state:
         st.session_state.date_range = (df_original['purchase_date'].min().date(), df_original['purchase_date'].max().date())
 
-    # Widgets for filters
+    # Widgets for user input on filters.
     st.session_state.selected_customers = st.sidebar.multiselect(
         "Select Customers", 
         options=sorted(df_original['customer_id'].unique()), 
@@ -85,7 +82,7 @@ if df_original is not None:
         max_value=df_original['purchase_date'].max().date()
     )
 
-    # Apply filters
+    # Apply filters to create a dynamic dataframe for display.
     df = df_original.copy()
     if st.session_state.selected_customers:
         df = df[df['customer_id'].isin(st.session_state.selected_customers)]
@@ -297,4 +294,3 @@ if df is not None:
                     st.info(f"Recommended Product 2: **{recommended_products[1]}**", icon="🛍️")
                 else:
                     st.write("No new products to recommend at this time.")
-
