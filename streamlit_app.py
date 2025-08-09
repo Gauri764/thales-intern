@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+from sklearn.metrics.pairwise import cosine_similarity
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -28,9 +29,6 @@ def load_data(filepath):
         df['activation_date'] = pd.to_datetime(df['activation_date'])
         df['expiration_date'] = pd.to_datetime(df['expiration_date'])
 
-        # The price and revenue columns are now included in the source CSV,
-        # so we no longer need to calculate them within the app. This resolves the KeyError.
-
         # Determine the current status of each license.
         today = datetime.now()
         df['status'] = np.where(df['expiration_date'] > today, 'Active', 'Expired')
@@ -44,6 +42,84 @@ def load_data(filepath):
         st.info("Please make sure you have generated the `synthetic_licensing_dataset.csv` file and it is in the same directory as this script.")
         return None
 
+# --- Caching Function for Predictions ---
+@st.cache_data
+def generate_predictions(_df):
+    """
+    Generates churn predictions and product recommendations for all customers.
+    This function is cached to avoid re-computing on every interaction.
+    """
+    if _df is None or _df.empty:
+        return pd.DataFrame()
+
+    # --- 1. Churn Prediction Model (Rule-Based) ---
+    customer_agg = _df.groupby('customer_id').agg(
+        last_purchase_date=('purchase_date', 'max'),
+        total_licenses_purchased=('licenses_purchased', 'sum'),
+        total_licenses_activated=('licenses_activated', 'sum'),
+        avg_usage_last_year=('licenses_used', 'mean'),
+        active_licenses=('status', lambda x: (x == 'Active').sum())
+    ).reset_index()
+
+    # Feature Engineering for Churn
+    customer_agg['days_since_last_purchase'] = (datetime.now() - customer_agg['last_purchase_date']).dt.days
+    customer_agg['activation_rate'] = customer_agg['total_licenses_activated'] / customer_agg['total_licenses_purchased']
+    customer_agg['activation_rate'].fillna(0, inplace=True)
+    
+    # Calculate Churn Score (a simple weighted model)
+    # Higher score = higher churn risk
+    score = (
+        (customer_agg['days_since_last_purchase'] / 365) * 0.5 +
+        (1 - customer_agg['activation_rate']) * 0.3 +
+        (1 - (customer_agg['avg_usage_last_year'] / customer_agg['total_licenses_purchased'].clip(1))) * 0.2
+    )
+    # Normalize score to a 0-1 probability
+    customer_agg['churn_probability'] = (score - score.min()) / (score.max() - score.min())
+    
+    # If a customer has active licenses, reduce their churn probability
+    customer_agg.loc[customer_agg['active_licenses'] > 0, 'churn_probability'] *= 0.2
+
+    # Determine Churn Reason
+    def get_churn_reason(row):
+        if row['churn_probability'] < 0.2:
+            return "Low Risk"
+        reasons = []
+        if row['days_since_last_purchase'] > 365:
+            reasons.append("High purchase recency")
+        if row['activation_rate'] < 0.5:
+            reasons.append("Low license activation rate")
+        if row['avg_usage_last_year'] < 10:
+             reasons.append("Low product usage")
+        return ", ".join(reasons) if reasons else "Moderate Risk"
+
+    customer_agg['churn_reason'] = customer_agg.apply(get_churn_reason, axis=1)
+
+    # --- 2. Cross-Sell/Up-Sell Recommendations (Collaborative Filtering) ---
+    # Create a user-item matrix
+    user_item_matrix = _df.pivot_table(index='customer_id', columns='product_id', values='licenses_purchased', aggfunc='sum').fillna(0)
+    
+    # Calculate cosine similarity between users
+    user_similarity = cosine_similarity(user_item_matrix)
+    user_similarity_df = pd.DataFrame(user_similarity, index=user_item_matrix.index, columns=user_item_matrix.index)
+
+    def get_recommendations(customer_id):
+        # Get top 5 most similar users (excluding the user itself)
+        similar_users = user_similarity_df[customer_id].sort_values(ascending=False).index[1:6]
+        
+        # Get products purchased by similar users
+        similar_user_products = user_item_matrix.loc[similar_users].sum().sort_values(ascending=False)
+        
+        # Get products the current user has already purchased
+        user_products = user_item_matrix.loc[customer_id][user_item_matrix.loc[customer_id] > 0].index
+        
+        # Recommend products that similar users bought but the current user hasn't
+        recommendations = similar_user_products[~similar_user_products.index.isin(user_products)]
+        return recommendations.head(3).index.tolist()
+
+    customer_agg['recommendations'] = customer_agg['customer_id'].apply(get_recommendations)
+
+    return customer_agg[['customer_id', 'churn_probability', 'churn_reason', 'recommendations']]
+
 # --- Load Data ---
 df_original = load_data("synthetic_licensing_dataset.csv")
 
@@ -54,47 +130,26 @@ st.sidebar.markdown("---")
 
 # --- Global Filters in Sidebar ---
 if df_original is not None:
-    st.sidebar.title("🧰 Global Filters")
+    st.sidebar.title("Global Filters")
     
-    # Initialize session state for filters to maintain user selections across reruns.
-    if 'selected_customers' not in st.session_state:
-        st.session_state.selected_customers = []
-    if 'selected_products' not in st.session_state:
-        st.session_state.selected_products = []
-    if 'date_range' not in st.session_state:
-        st.session_state.date_range = (df_original['purchase_date'].min().date(), df_original['purchase_date'].max().date())
+    if 'selected_customers' not in st.session_state: st.session_state.selected_customers = []
+    if 'selected_products' not in st.session_state: st.session_state.selected_products = []
+    if 'date_range' not in st.session_state: st.session_state.date_range = (df_original['purchase_date'].min().date(), df_original['purchase_date'].max().date())
 
-    # Widgets for user input on filters.
-    st.session_state.selected_customers = st.sidebar.multiselect(
-        "Select Customers", 
-        options=sorted(df_original['customer_id'].unique()), 
-        default=st.session_state.selected_customers
-    )
-    st.session_state.selected_products = st.sidebar.multiselect(
-        "Select Products", 
-        options=sorted(df_original['product_id'].unique()), 
-        default=st.session_state.selected_products
-    )
-    st.session_state.date_range = st.sidebar.date_input(
-        "Select Purchase Date Range", 
-        value=st.session_state.date_range,
-        min_value=df_original['purchase_date'].min().date(),
-        max_value=df_original['purchase_date'].max().date()
-    )
+    st.session_state.selected_customers = st.sidebar.multiselect("Select Customers", options=sorted(df_original['customer_id'].unique()), default=st.session_state.selected_customers)
+    st.session_state.selected_products = st.sidebar.multiselect("Select Products", options=sorted(df_original['product_id'].unique()), default=st.session_state.selected_products)
+    st.session_state.date_range = st.sidebar.date_input("Select Purchase Date Range", value=st.session_state.date_range, min_value=df_original['purchase_date'].min().date(), max_value=df_original['purchase_date'].max().date())
 
-    # Apply filters to create a dynamic dataframe for display.
     df = df_original.copy()
-    if st.session_state.selected_customers:
-        df = df[df['customer_id'].isin(st.session_state.selected_customers)]
-    if st.session_state.selected_products:
-        df = df[df['product_id'].isin(st.session_state.selected_products)]
+    if st.session_state.selected_customers: df = df[df['customer_id'].isin(st.session_state.selected_customers)]
+    if st.session_state.selected_products: df = df[df['product_id'].isin(st.session_state.selected_products)]
     if len(st.session_state.date_range) == 2:
         start_date, end_date = pd.to_datetime(st.session_state.date_range[0]), pd.to_datetime(st.session_state.date_range[1])
         df = df[(df['purchase_date'] >= start_date) & (df['purchase_date'] <= end_date)]
 
 # --- Main Application ---
 if df is not None:
-    # --- Page 1: Dashboard Overview ---
+    # --- Page 1-4 (Unchanged) ---
     if page == "Dashboard Overview":
         st.title("🔑 Licensing Dashboard Overview")
         st.markdown("A high-level view of key business metrics, based on active filters.")
@@ -124,7 +179,6 @@ if df is not None:
             fig_status_pie = px.pie(status_counts, values=status_counts.values, names=status_counts.index, title="Active vs. Expired Licenses", hole=0.3)
             st.plotly_chart(fig_status_pie, use_container_width=True)
 
-    # --- Page 2: Customer RFM Analysis ---
     elif page == "Customer RFM Analysis":
         st.title("👥 Customer RFM Analysis")
         st.markdown("Segmenting customers based on Recency, Frequency, and Monetary value from the filtered data.")
@@ -138,13 +192,10 @@ if df is not None:
             })
             rfm_df.rename(columns={'purchase_date': 'Recency', 'customer_id': 'Frequency', 'revenue': 'Monetary'}, inplace=True)
 
-            r_labels = range(4, 0, -1)
-            f_labels = range(1, 5)
-            m_labels = range(1, 5)
+            r_labels = range(4, 0, -1); f_labels = range(1, 5); m_labels = range(1, 5)
             rfm_df['R_Score'] = pd.qcut(rfm_df['Recency'], 4, labels=r_labels, duplicates='drop')
             rfm_df['F_Score'] = pd.qcut(rfm_df['Frequency'].rank(method='first'), 4, labels=f_labels, duplicates='drop')
             rfm_df['M_Score'] = pd.qcut(rfm_df['Monetary'], 4, labels=m_labels, duplicates='drop')
-            
             rfm_df['RFM_Score'] = rfm_df[['R_Score', 'F_Score', 'M_Score']].sum(axis=1)
 
             def assign_segment_name(row):
@@ -160,18 +211,16 @@ if df is not None:
                 st.subheader("RFM Segment Distribution")
                 segment_counts = rfm_df['Segment_Name'].value_counts()
                 fig_rfm_bar = px.bar(segment_counts, x=segment_counts.index, y=segment_counts.values, title="Number of Customers by RFM Segment")
-                fig_rfm_bar.update_layout(xaxis_title="Segment", yaxis_title="Number of Customers")
                 st.plotly_chart(fig_rfm_bar, use_container_width=True)
             with col2:
                 st.subheader("Recency vs. Frequency Scatter Plot")
-                fig_rfm_scatter = px.scatter(rfm_df, x='Recency', y='Frequency', color='Segment_Name', title="Customer Segments", labels={'Recency': 'Recency (Days)', 'Frequency': 'Frequency (Purchases)'})
+                fig_rfm_scatter = px.scatter(rfm_df, x='Recency', y='Frequency', color='Segment_Name', title="Customer Segments")
                 st.plotly_chart(fig_rfm_scatter, use_container_width=True)
             st.subheader("Customer Data with RFM Segments")
             st.dataframe(rfm_df.sort_values(by='RFM_Score', ascending=False))
         else:
             st.warning("No data available for the selected filters to perform RFM analysis.")
 
-    # --- Page 3: Product Insights ---
     elif page == "Product Insights":
         st.title("📦 Product Insights")
         st.markdown("Analysis of product performance and usage from the filtered data.")
@@ -181,14 +230,12 @@ if df is not None:
             with col1:
                 st.subheader("Top 10 Products by Revenue")
                 top_products_rev = df.groupby('product_id')['revenue'].sum().nlargest(10).sort_values(ascending=True)
-                fig_top_prod_rev = px.bar(top_products_rev, x=top_products_rev.values, y=top_products_rev.index, orientation='h', title="Top 10 Products by Revenue")
-                fig_top_prod_rev.update_layout(xaxis_title="Total Revenue", yaxis_title="Product ID")
+                fig_top_prod_rev = px.bar(top_products_rev, x=top_products_rev.values, y=top_products_rev.index, orientation='h')
                 st.plotly_chart(fig_top_prod_rev, use_container_width=True)
             with col2:
                 st.subheader("Top 10 Products by Licenses Sold")
                 top_products_lic = df.groupby('product_id')['licenses_purchased'].sum().nlargest(10).sort_values(ascending=True)
-                fig_top_prod_lic = px.bar(top_products_lic, x=top_products_lic.values, y=top_products_lic.index, orientation='h', title="Top 10 Products by Licenses Sold")
-                fig_top_prod_lic.update_layout(xaxis_title="Number of Licenses", yaxis_title="Product ID")
+                fig_top_prod_lic = px.bar(top_products_lic, x=top_products_lic.values, y=top_products_lic.index, orientation='h')
                 st.plotly_chart(fig_top_prod_lic, use_container_width=True)
             st.subheader("Product Usage Analysis")
             usage_df = df.groupby('product_id').agg({'licenses_purchased': 'sum', 'licenses_activated': 'sum', 'licenses_used': 'mean'}).reset_index()
@@ -198,7 +245,6 @@ if df is not None:
         else:
             st.warning("No data available for the selected filters.")
 
-    # --- Page 4: Detailed Analytics (Integrated) ---
     elif page == "Detailed Analytics":
         st.title("🔬 Detailed Analytics")
         st.markdown("Use the global filters in the sidebar to drill down into the licensing data.")
@@ -211,35 +257,28 @@ if df is not None:
         if not df.empty:
             col1, col2 = st.columns(2)
             with col1:
-                # 1. Top 10 sold products over the years
                 st.subheader("📈 Top 10 Sold Products Over the Years")
                 product_sales = df.groupby(['product_id', df['purchase_date'].dt.year])['licenses_purchased'].sum().reset_index()
                 top_10_products = product_sales.groupby('product_id')['licenses_purchased'].sum().nlargest(10).index
                 filtered_product_sales = product_sales[product_sales['product_id'].isin(top_10_products)]
                 fig1 = px.line(filtered_product_sales, x='purchase_date', y='licenses_purchased', color='product_id', markers=True)
                 st.plotly_chart(fig1, use_container_width=True)
-
             with col2:
-                # 2. Pie chart: Top 10 customers and Others
                 st.subheader("🧑‍💼 Customer License Share")
                 customer_total = df.groupby('customer_id')['licenses_purchased'].sum()
                 top_customers = customer_total.nlargest(10)
-                
                 is_filtered = bool(st.session_state.selected_customers) or bool(st.session_state.selected_products)
-                
                 if not is_filtered and len(df_original['customer_id'].unique()) > 10:
                     fig2 = go.Figure(data=[go.Pie(labels=[str(c) for c in top_customers.index], values=top_customers.values, hole=0.4, textinfo='percent+label')])
                     fig2.update_layout(title_text="Top 10 Customers (Unfiltered)")
                 else:
                     others_sum = customer_total.sum() - top_customers.sum()
-                    labels = [str(c) for c in top_customers.index] + ['Others']
-                    values = list(top_customers.values) + [others_sum]
+                    labels = [str(c) for c in top_customers.index] + ['Others']; values = list(top_customers.values) + [others_sum]
                     fig2 = go.Figure(data=[go.Pie(labels=labels, values=values, hole=0.4)])
                     fig2.update_layout(title_text="Customer Share (Filtered)")
                 st.plotly_chart(fig2, use_container_width=True)
 
             st.markdown("---")
-            # 3. Licenses Purchased vs Activated vs Used (Top 10 Customers)
             st.subheader("📊 License Usage for Top 10 Customers")
             license_columns = ['licenses_purchased', 'licenses_activated', 'licenses_used']
             if all(col in df.columns for col in license_columns):
@@ -248,49 +287,65 @@ if df is not None:
                     license_stats = license_stats.reset_index()
                     license_stats['customer_id'] = license_stats['customer_id'].astype(str)
                     license_stats_melted = license_stats.melt(id_vars='customer_id', var_name='License Type', value_name='Count')
-                    
                     bar_fig = px.bar(license_stats_melted, x='customer_id', y='Count', color='License Type', barmode='group', labels={'customer_id': 'Customer ID'})
-                    # Explicitly set the x-axis type to 'category' to ensure discrete labels
                     bar_fig.update_xaxes(type='category')
                     st.plotly_chart(bar_fig, use_container_width=True)
-                else:
-                    st.warning("No data available for top customers' license stats based on the current filters.")
-        else:
-            st.warning("No data available for the selected filters.")
+                else: st.warning("No data available for top customers' license stats based on the current filters.")
+        else: st.warning("No data available for the selected filters.")
 
-    # --- Page 5: Predictive Analytics ---
+    # --- Page 5: Predictive Analytics (IMPLEMENTED) ---
     elif page == "Predictive Analytics":
         st.title("🔮 Predictive Analytics")
-        st.warning("This section is a placeholder for the machine learning model integration.", icon="⚠️")
-        st.markdown("""
-        Once the prediction models are built, this is where you will interact with them.
-        ### Planned Features:
-        1.  **Churn Prediction:** Select a customer to predict their likelihood of churn.
-        2.  **Cross-Sell/Up-Sell Recommendations:** Select a customer to get product recommendations.
-        """)
-        st.subheader("Select a Customer to Analyze")
-        # Use original unfiltered dataframe for the selector
-        customer_id_to_predict = st.selectbox("Customer ID", options=df_original['customer_id'].unique())
-        if st.button("Run Predictions"):
-            st.success(f"Running predictions for Customer ID: {customer_id_to_predict}")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("Churn Prediction")
-                churn_prob = np.random.uniform(0.05, 0.95)
-                if churn_prob > 0.6:
-                    st.error(f"High Churn Risk: {churn_prob:.1%}", icon="🔥")
-                    st.write("**Reason:** Low product usage in the last quarter.")
-                else:
-                    st.success(f"Low Churn Risk: {churn_prob:.1%}", icon="✅")
-                    st.write("**Reason:** Consistent product activation and usage.")
-            with col2:
-                st.subheader("Cross-Sell Recommendations")
-                owned_products = df_original[df_original['customer_id'] == customer_id_to_predict]['product_id'].unique()
-                all_products = df_original['product_id'].unique()
-                potential_recs = np.setdiff1d(all_products, owned_products)
-                if len(potential_recs) > 2:
-                    recommended_products = np.random.choice(potential_recs, 2, replace=False)
-                    st.info(f"Recommended Product 1: **{recommended_products[0]}**", icon="🛍️")
-                    st.info(f"Recommended Product 2: **{recommended_products[1]}**", icon="🛍️")
-                else:
-                    st.write("No new products to recommend at this time.")
+        st.markdown("Live predictions for customer churn and product recommendations.")
+        
+        # Generate predictions for all customers
+        predictions_df = generate_predictions(df_original)
+
+        if not predictions_df.empty:
+            # --- Churn Rate Chart ---
+            st.subheader("🔥 Top 15 Customers with Highest Churn Risk")
+            top_churners = predictions_df.nlargest(15, 'churn_probability')
+            fig_churn = px.bar(top_churners, x='customer_id', y='churn_probability', 
+                               title="Highest Churn Risk Customers",
+                               labels={'customer_id': 'Customer ID', 'churn_probability': 'Churn Probability'},
+                               color='churn_probability', color_continuous_scale='Reds')
+            fig_churn.update_xaxes(type='category')
+            st.plotly_chart(fig_churn, use_container_width=True)
+
+            st.markdown("---")
+
+            # --- Single Customer Analysis ---
+            st.subheader("Select a Customer to Analyze")
+            customer_id_to_predict = st.selectbox("Customer ID", options=predictions_df['customer_id'].unique())
+            
+            if customer_id_to_predict:
+                customer_data = predictions_df[predictions_df['customer_id'] == customer_id_to_predict].iloc[0]
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader("Churn Prediction")
+                    churn_prob = customer_data['churn_probability']
+                    churn_reason = customer_data['churn_reason']
+                    
+                    if churn_prob > 0.6:
+                        st.error(f"High Churn Risk: {churn_prob:.1%}", icon="🔥")
+                    elif churn_prob > 0.3:
+                        st.warning(f"Medium Churn Risk: {churn_prob:.1%}", icon="⚠️")
+                    else:
+                        st.success(f"Low Churn Risk: {churn_prob:.1%}", icon="✅")
+                    st.write(f"**Reason:** {churn_reason}")
+
+                with col2:
+                    st.subheader("Cross-Sell & Up-Sell Recommendations")
+                    recommendations = customer_data['recommendations']
+                    if recommendations:
+                        for rec in recommendations:
+                            st.info(f"Recommend Product: **{rec}**", icon="🛍️")
+                    else:
+                        st.write("No specific recommendations at this time.")
+
+            # --- Collapsible Full Data View ---
+            with st.expander("View All Customer Predictions and Recommendations"):
+                st.dataframe(predictions_df)
+        else:
+            st.warning("Not enough data to generate predictions. Please clear filters.")
