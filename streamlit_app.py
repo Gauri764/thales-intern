@@ -303,7 +303,7 @@ if df is not None:
         predictions_df = generate_predictions(df_original)
 
         if not predictions_df.empty:
-            st.subheader("🔥 Top 15 Active Customers at Risk of Non-Renewal")
+            st.subheader("Top 15 Active Customers at Risk of Non-Renewal")
             top_churners = predictions_df.nlargest(15, 'renewal_risk')
             fig_churn = px.bar(top_churners, x='customer_id', y='renewal_risk', 
                                labels={'customer_id': 'Customer ID', 'renewal_risk': 'Renewal Risk Score'},
@@ -326,11 +326,11 @@ if df is not None:
                     renewal_reason = customer_data['renewal_reason']
                     
                     if renewal_risk > 0.6:
-                        st.error(f"High Renewal Risk: {renewal_risk:.1%}", icon="🔥")
+                        st.error(f"Low Chance of Renewal: {renewal_risk:.1%}", icon="🔴")
                     elif renewal_risk > 0.3:
-                        st.warning(f"Medium Renewal Risk: {renewal_risk:.1%}", icon="⚠️")
+                        st.warning(f"Moderate Chance of Renewal: {renewal_risk:.1%}", icon="🟡")
                     else:
-                        st.success(f"Low Renewal Risk: {renewal_risk:.1%}", icon="✅")
+                        st.success(f"High Chance of Renewal: {renewal_risk:.1%}", icon="🟢")
                     st.write(f"**Reason:** {renewal_reason}")
                     st.caption(f"Next license expires on: {customer_data['next_expiration_date'].date()}")
 
