@@ -124,7 +124,7 @@ def generate_predictions(_df):
 df_original = load_data("synthetic_licensing_dataset.csv")
 
 # --- Sidebar ---
-st.sidebar.title("Navigation")
+st.sidebar.title("🧭 Navigation")
 page = st.sidebar.radio("Go to", ["Dashboard Overview", "Customer RFM Analysis", "Product Insights", "Detailed Analytics", "Predictive Analytics"])
 st.sidebar.markdown("---")
 
