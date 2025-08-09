@@ -296,26 +296,22 @@ if df is not None:
     # --- Page 5: Predictive Analytics ---
     elif page == "Predictive Analytics":
         st.title("🔮 Predictive Analytics")
-        st.markdown("Live predictions for customer churn and product recommendations.")
+        st.markdown("Live predictions for customer renewal risk and product recommendations.")
         
-        # Generate predictions for all customers
         predictions_df = generate_predictions(df_original)
 
         if not predictions_df.empty:
-            # --- Churn Rate Chart ---
-            st.subheader("Top 15 Customers with Highest Churn Risk")
-            top_churners = predictions_df.nlargest(15, 'churn_probability')
-            fig_churn = px.bar(top_churners, x='customer_id', y='churn_probability', 
-                               title="Highest Churn Risk Customers",
-                               labels={'customer_id': 'Customer ID', 'churn_probability': 'Churn Probability'},
-                               color='churn_probability', color_continuous_scale='Reds')
+            st.subheader("🔥 Top 15 Active Customers at Risk of Non-Renewal")
+            top_churners = predictions_df.nlargest(15, 'renewal_risk')
+            fig_churn = px.bar(top_churners, x='customer_id', y='renewal_risk', 
+                               labels={'customer_id': 'Customer ID', 'renewal_risk': 'Renewal Risk Score'},
+                               color='renewal_risk', color_continuous_scale='Reds')
             fig_churn.update_xaxes(type='category')
             st.plotly_chart(fig_churn, use_container_width=True)
 
             st.markdown("---")
 
-            # --- Single Customer Analysis ---
-            st.subheader("Select a Customer to Analyze")
+            st.subheader("Select an Active Customer to Analyze")
             customer_id_to_predict = st.selectbox("Customer ID", options=predictions_df['customer_id'].unique())
             
             if customer_id_to_predict:
@@ -323,17 +319,18 @@ if df is not None:
                 
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.subheader("Churn Prediction")
-                    churn_prob = customer_data['churn_probability']
-                    churn_reason = customer_data['churn_reason']
+                    st.subheader("Renewal Risk Prediction")
+                    renewal_risk = customer_data['renewal_risk']
+                    renewal_reason = customer_data['renewal_reason']
                     
-                    if churn_prob > 0.6:
-                        st.error(f"High Churn Risk: {churn_prob:.1%}", icon="🔴")
-                    elif churn_prob > 0.3:
-                        st.warning(f"Medium Churn Risk: {churn_prob:.1%}", icon="🟡")
+                    if renewal_risk > 0.6:
+                        st.error(f"High Renewal Risk: {renewal_risk:.1%}", icon="🔥")
+                    elif renewal_risk > 0.3:
+                        st.warning(f"Medium Renewal Risk: {renewal_risk:.1%}", icon="⚠️")
                     else:
-                        st.success(f"Low Churn Risk: {churn_prob:.1%}", icon="🟢")
-                    st.write(f"**Reason:** {churn_reason}")
+                        st.success(f"Low Renewal Risk: {renewal_risk:.1%}", icon="✅")
+                    st.write(f"**Reason:** {renewal_reason}")
+                    st.caption(f"Next license expires on: {customer_data['next_expiration_date'].date()}")
 
                 with col2:
                     st.subheader("Cross-Sell & Up-Sell Recommendations")
@@ -344,8 +341,8 @@ if df is not None:
                     else:
                         st.write("No specific recommendations at this time.")
 
-            # --- Collapsible Full Data View ---
-            with st.expander("View All Customer Predictions and Recommendations"):
+            with st.expander("View All Active Customer Predictions"):
                 st.dataframe(predictions_df)
         else:
-            st.warning("Not enough data to generate predictions. Please clear filters.")
+            st.warning("No active customers found in the dataset to generate predictions.")
+
