@@ -130,7 +130,7 @@ st.sidebar.markdown("---")
 
 # --- Global Filters in Sidebar ---
 if df_original is not None:
-    st.sidebar.title("Global Filters")
+    st.sidebar.title("⚙️ Global Filters")
     
     if 'selected_customers' not in st.session_state: st.session_state.selected_customers = []
     if 'selected_products' not in st.session_state: st.session_state.selected_products = []
@@ -149,7 +149,7 @@ if df_original is not None:
 
 # --- Main Application ---
 if df is not None:
-    # --- Page 1-4 (Unchanged) ---
+    # --- Page 1-4 ---
     if page == "Dashboard Overview":
         st.title("🔑 Licensing Dashboard Overview")
         st.markdown("A high-level view of key business metrics, based on active filters.")
@@ -216,8 +216,8 @@ if df is not None:
                 st.subheader("Recency vs. Frequency Scatter Plot")
                 fig_rfm_scatter = px.scatter(rfm_df, x='Recency', y='Frequency', color='Segment_Name', title="Customer Segments")
                 st.plotly_chart(fig_rfm_scatter, use_container_width=True)
-            st.subheader("Customer Data with RFM Segments")
-            st.dataframe(rfm_df.sort_values(by='RFM_Score', ascending=False))
+            with st.expander("Customer Data with RFM Segments"):
+                st.dataframe(rfm_df.sort_values(by='RFM_Score', ascending=False))
         else:
             st.warning("No data available for the selected filters to perform RFM analysis.")
 
@@ -237,11 +237,11 @@ if df is not None:
                 top_products_lic = df.groupby('product_id')['licenses_purchased'].sum().nlargest(10).sort_values(ascending=True)
                 fig_top_prod_lic = px.bar(top_products_lic, x=top_products_lic.values, y=top_products_lic.index, orientation='h')
                 st.plotly_chart(fig_top_prod_lic, use_container_width=True)
-            st.subheader("Product Usage Analysis")
             usage_df = df.groupby('product_id').agg({'licenses_purchased': 'sum', 'licenses_activated': 'sum', 'licenses_used': 'mean'}).reset_index()
             usage_df['activation_rate'] = (usage_df['licenses_activated'] / usage_df['licenses_purchased']) * 100
             usage_df['activation_rate'] = usage_df['activation_rate'].fillna(0)
-            st.dataframe(usage_df.sort_values(by='activation_rate', ascending=False))
+            with st.expander("Product Usage Analysis"):
+                st.dataframe(usage_df.sort_values(by='activation_rate', ascending=False))
         else:
             st.warning("No data available for the selected filters.")
 
@@ -249,7 +249,7 @@ if df is not None:
         st.title("🔬 Detailed Analytics")
         st.markdown("Use the global filters in the sidebar to drill down into the licensing data.")
 
-        with st.expander(f"📄 Show Filtered Data Table ({len(df)} rows)", expanded=False):
+        with st.expander(f"Show Filtered Data Table ({len(df)} rows)", expanded=False):
             st.dataframe(df, use_container_width=True)
 
         st.markdown("---")
@@ -257,14 +257,14 @@ if df is not None:
         if not df.empty:
             col1, col2 = st.columns(2)
             with col1:
-                st.subheader("📈 Top 10 Sold Products Over the Years")
+                st.subheader("Top 10 Sold Products Over the Years")
                 product_sales = df.groupby(['product_id', df['purchase_date'].dt.year])['licenses_purchased'].sum().reset_index()
                 top_10_products = product_sales.groupby('product_id')['licenses_purchased'].sum().nlargest(10).index
                 filtered_product_sales = product_sales[product_sales['product_id'].isin(top_10_products)]
                 fig1 = px.line(filtered_product_sales, x='purchase_date', y='licenses_purchased', color='product_id', markers=True)
                 st.plotly_chart(fig1, use_container_width=True)
             with col2:
-                st.subheader("🧑‍💼 Customer License Share")
+                st.subheader("Customer License Share")
                 customer_total = df.groupby('customer_id')['licenses_purchased'].sum()
                 top_customers = customer_total.nlargest(10)
                 is_filtered = bool(st.session_state.selected_customers) or bool(st.session_state.selected_products)
@@ -279,7 +279,7 @@ if df is not None:
                 st.plotly_chart(fig2, use_container_width=True)
 
             st.markdown("---")
-            st.subheader("📊 License Usage for Top 10 Customers")
+            st.subheader("License Usage for Top 10 Customers")
             license_columns = ['licenses_purchased', 'licenses_activated', 'licenses_used']
             if all(col in df.columns for col in license_columns):
                 license_stats = df.groupby('customer_id')[license_columns].sum().sort_values(by='licenses_purchased', ascending=False).head(10)
@@ -293,7 +293,7 @@ if df is not None:
                 else: st.warning("No data available for top customers' license stats based on the current filters.")
         else: st.warning("No data available for the selected filters.")
 
-    # --- Page 5: Predictive Analytics (IMPLEMENTED) ---
+    # --- Page 5: Predictive Analytics ---
     elif page == "Predictive Analytics":
         st.title("🔮 Predictive Analytics")
         st.markdown("Live predictions for customer churn and product recommendations.")
@@ -303,7 +303,7 @@ if df is not None:
 
         if not predictions_df.empty:
             # --- Churn Rate Chart ---
-            st.subheader("🔥 Top 15 Customers with Highest Churn Risk")
+            st.subheader("Top 15 Customers with Highest Churn Risk")
             top_churners = predictions_df.nlargest(15, 'churn_probability')
             fig_churn = px.bar(top_churners, x='customer_id', y='churn_probability', 
                                title="Highest Churn Risk Customers",
@@ -328,11 +328,11 @@ if df is not None:
                     churn_reason = customer_data['churn_reason']
                     
                     if churn_prob > 0.6:
-                        st.error(f"High Churn Risk: {churn_prob:.1%}", icon="🔥")
+                        st.error(f"High Churn Risk: {churn_prob:.1%}", icon="🔴")
                     elif churn_prob > 0.3:
-                        st.warning(f"Medium Churn Risk: {churn_prob:.1%}", icon="⚠️")
+                        st.warning(f"Medium Churn Risk: {churn_prob:.1%}", icon="🟡")
                     else:
-                        st.success(f"Low Churn Risk: {churn_prob:.1%}", icon="✅")
+                        st.success(f"Low Churn Risk: {churn_prob:.1%}", icon="🟢")
                     st.write(f"**Reason:** {churn_reason}")
 
                 with col2:
