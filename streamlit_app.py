@@ -214,7 +214,7 @@ if df is not None:
                 st.plotly_chart(fig_rfm_bar, use_container_width=True)
             with col2:
                 st.subheader("Recency vs. Frequency Scatter Plot")
-                fig_rfm_scatter = px.scatter(rfm_df, x='Recency', y='Frequency', color='Segment_Name', title="Customer Segments")
+                fig_rfm_scatter = px.scatter(rfm_df, x='Recency', y='Frequency', color='Segment_Name', title="Customer Segments", labels={'Segment_Name': 'Segments'})
                 st.plotly_chart(fig_rfm_scatter, use_container_width=True)
             with st.expander("Customer Data with RFM Segments"):
                 st.dataframe(rfm_df.sort_values(by='RFM_Score', ascending=False))
