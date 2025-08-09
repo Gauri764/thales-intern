@@ -210,7 +210,7 @@ if df is not None:
             with col1:
                 st.subheader("RFM Segment Distribution")
                 segment_counts = rfm_df['Segment_Name'].value_counts()
-                fig_rfm_bar = px.bar(segment_counts, x=segment_counts.index, y=segment_counts.values, title="Number of Customers by RFM Segment", labels={segment_counts.index: 'Segment', segment_counts.values: 'Frequency'})
+                fig_rfm_bar = px.bar(segment_counts, x=segment_counts.index, y=segment_counts.values, title="Number of Customers by RFM Segment", labels={'segment_counts.index': 'Segment', 'segment_counts.values': 'Frequency'})
                 st.plotly_chart(fig_rfm_bar, use_container_width=True)
             with col2:
                 st.subheader("Recency vs. Frequency Scatter Plot")
