@@ -46,79 +46,81 @@ def load_data(filepath):
 @st.cache_data
 def generate_predictions(_df):
     """
-    Generates churn predictions and product recommendations for all customers.
+    Generates renewal risk predictions and product recommendations for all ACTIVE customers.
     This function is cached to avoid re-computing on every interaction.
     """
     if _df is None or _df.empty:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=['customer_id', 'renewal_risk', 'renewal_reason', 'recommendations', 'next_expiration_date'])
 
-    # --- 1. Churn Prediction Model (Rule-Based) ---
+    # --- 1. Renewal Risk Prediction Model (Rule-Based) ---
+    # Base aggregation for all customers
     customer_agg = _df.groupby('customer_id').agg(
-        last_purchase_date=('purchase_date', 'max'),
         total_licenses_purchased=('licenses_purchased', 'sum'),
         total_licenses_activated=('licenses_activated', 'sum'),
-        avg_usage_last_year=('licenses_used', 'mean'),
-        active_licenses=('status', lambda x: (x == 'Active').sum())
+        avg_usage_last_year=('licenses_used', 'mean')
     ).reset_index()
 
-    # Feature Engineering for Churn
-    customer_agg['days_since_last_purchase'] = (datetime.now() - customer_agg['last_purchase_date']).dt.days
+    # --- Filter for ACTIVE customers and get their next expiration date ---
+    active_licenses_df = _df[_df['status'] == 'Active']
+    
+    # --- FIX: Ensure a correctly structured empty DataFrame is returned if no active licenses ---
+    if active_licenses_df.empty:
+        return pd.DataFrame(columns=['customer_id', 'renewal_risk', 'renewal_reason', 'recommendations', 'next_expiration_date'])
+        
+    next_expiration = active_licenses_df.groupby('customer_id')['expiration_date'].min().reset_index()
+    next_expiration.rename(columns={'expiration_date': 'next_expiration_date'}, inplace=True)
+
+    # Merge to only keep customers with active licenses
+    customer_agg = pd.merge(customer_agg, next_expiration, on='customer_id', how='inner')
+
+    # Feature Engineering for Renewal Risk
+    customer_agg['days_to_expiration'] = (customer_agg['next_expiration_date'] - datetime.now()).dt.days
+    customer_agg['days_to_expiration'] = customer_agg['days_to_expiration'].clip(lower=0) # Can't be negative
     customer_agg['activation_rate'] = customer_agg['total_licenses_activated'] / customer_agg['total_licenses_purchased']
     customer_agg['activation_rate'].fillna(0, inplace=True)
     
-    # Calculate Churn Score (a simple weighted model)
-    # Higher score = higher churn risk
+    # Calculate Renewal Risk Score (a simple weighted model)
+    # Higher score = higher risk of not renewing
+    # Heavily weighted towards licenses expiring soon and low usage
     score = (
-        (customer_agg['days_since_last_purchase'] / 365) * 0.5 +
-        (1 - customer_agg['activation_rate']) * 0.3 +
-        (1 - (customer_agg['avg_usage_last_year'] / customer_agg['total_licenses_purchased'].clip(1))) * 0.2
+        ((365 - customer_agg['days_to_expiration']) / 365).clip(0) * 0.6 +  # Risk increases as expiration nears
+        (1 - (customer_agg['avg_usage_last_year'] / customer_agg['total_licenses_purchased'].clip(1))) * 0.3 +
+        (1 - customer_agg['activation_rate']) * 0.1
     )
     # Normalize score to a 0-1 probability
-    customer_agg['churn_probability'] = (score - score.min()) / (score.max() - score.min())
+    customer_agg['renewal_risk'] = (score - score.min()) / (score.max() - score.min())
     
-    # If a customer has active licenses, reduce their churn probability
-    customer_agg.loc[customer_agg['active_licenses'] > 0, 'churn_probability'] *= 0.2
-
-    # Determine Churn Reason
-    def get_churn_reason(row):
-        if row['churn_probability'] < 0.2:
+    # Determine Renewal Risk Reason
+    def get_renewal_reason(row):
+        if row['renewal_risk'] < 0.2:
             return "Low Risk"
         reasons = []
-        if row['days_since_last_purchase'] > 365:
-            reasons.append("High purchase recency")
-        if row['activation_rate'] < 0.5:
-            reasons.append("Low license activation rate")
+        if row['days_to_expiration'] < 90:
+            reasons.append("License expiring soon")
         if row['avg_usage_last_year'] < 10:
              reasons.append("Low product usage")
+        if row['activation_rate'] < 0.6:
+            reasons.append("Low historical activation rate")
         return ", ".join(reasons) if reasons else "Moderate Risk"
 
-    customer_agg['churn_reason'] = customer_agg.apply(get_churn_reason, axis=1)
+    customer_agg['renewal_reason'] = customer_agg.apply(get_renewal_reason, axis=1)
 
     # --- 2. Cross-Sell/Up-Sell Recommendations (Collaborative Filtering) ---
-    # Create a user-item matrix
     user_item_matrix = _df.pivot_table(index='customer_id', columns='product_id', values='licenses_purchased', aggfunc='sum').fillna(0)
-    
-    # Calculate cosine similarity between users
     user_similarity = cosine_similarity(user_item_matrix)
     user_similarity_df = pd.DataFrame(user_similarity, index=user_item_matrix.index, columns=user_item_matrix.index)
 
     def get_recommendations(customer_id):
-        # Get top 5 most similar users (excluding the user itself)
+        if customer_id not in user_similarity_df.index: return []
         similar_users = user_similarity_df[customer_id].sort_values(ascending=False).index[1:6]
-        
-        # Get products purchased by similar users
         similar_user_products = user_item_matrix.loc[similar_users].sum().sort_values(ascending=False)
-        
-        # Get products the current user has already purchased
         user_products = user_item_matrix.loc[customer_id][user_item_matrix.loc[customer_id] > 0].index
-        
-        # Recommend products that similar users bought but the current user hasn't
         recommendations = similar_user_products[~similar_user_products.index.isin(user_products)]
         return recommendations.head(3).index.tolist()
 
     customer_agg['recommendations'] = customer_agg['customer_id'].apply(get_recommendations)
 
-    return customer_agg[['customer_id', 'churn_probability', 'churn_reason', 'recommendations']]
+    return customer_agg[['customer_id', 'renewal_risk', 'renewal_reason', 'recommendations', 'next_expiration_date']]
 
 # --- Load Data ---
 df_original = load_data("synthetic_licensing_dataset.csv")
