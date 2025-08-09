@@ -294,4 +294,3 @@ if df is not None:
                     st.info(f"Recommended Product 2: **{recommended_products[1]}**", icon="🛍️")
                 else:
                     st.write("No new products to recommend at this time.")
-�
