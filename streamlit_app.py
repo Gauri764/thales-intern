@@ -138,7 +138,7 @@ if df_original is not None:
 
     st.session_state.selected_customers = st.sidebar.multiselect("Select Customers", options=sorted(df_original['customer_id'].unique()), default=st.session_state.selected_customers)
     st.session_state.selected_products = st.sidebar.multiselect("Select Products", options=sorted(df_original['product_id'].unique()), default=st.session_state.selected_products)
-    st.session_state.date_range = st.sidebar.date_input("Select Purchase Date Range", value=st.session_state.date_range, min_value=df_original['purchase_date'].min().date(), max_value=df_original['purchase_date'].max().date())
+    st.session_state.date_range = st.sidebar.slider("Select Purchase Date Range", min_value=df_original['purchase_date'].min().date(), max_value=df_original['purchase_date'].max().date(), value=st.session_state.date_range, format="YYYY/MM/DD")
 
     df = df_original.copy()
     if st.session_state.selected_customers: df = df[df['customer_id'].isin(st.session_state.selected_customers)]
