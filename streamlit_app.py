@@ -345,4 +345,3 @@ if df is not None:
                 st.dataframe(predictions_df)
         else:
             st.warning("No active customers found in the dataset to generate predictions.")
-
